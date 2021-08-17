@@ -86,6 +86,11 @@ from sklearn.model_selection import TimeSeriesSplit
 from matplotlib import pyplot
 from statsmodels.tsa.holtwinters import ExponentialSmoothing
 
+import statsmodels.api as sm
+import itertools
+import warnings
+
+
 plt.style.use('Solarize_Light2')
 
 
@@ -167,8 +172,9 @@ decomp.plot()
 fig, ax = plt.subplots(2, figsize=(12,6))
 ax[0] = plot_acf(df['Close'].dropna(), ax=ax[0], lags=20)
 ax[1] = plot_pacf(df['Close'].dropna(), ax=ax[1], lags=20)
-# ARIMA Forecast
 
+
+# ARIMA Forecast
 
 model = ARIMA(df['Close'].dropna(), order=(0, 0, 0))
 mod_000 = model.fit()
@@ -218,16 +224,14 @@ ax.set_ylabel('price')
 plt.legend()
 plt.show()
 
-
 # Quality matrices
-
 
 rmse = lambda act, pred: np.sqrt(mean_squared_error(act, pred))
 
 print('RMSE: {:0.2f}'.format(rmse(test_shares, pred_ev)))
 print('MAPE: {:0.2f}%'.format(mean_absolute_percentage_error(test_shares, pred_ev)*100))
 
-#Multiple split
+# ARIMA multiple train/test splits
 
 X = df['Close']
 splits = TimeSeriesSplit(n_splits=3)
@@ -297,21 +301,12 @@ ax.set_title("ARIMA Forecasting");
 # If you assume the price is seasonal
 
 #Should be the same with the csv file above
-
-
 saham = pd.read_csv('UNVR-1Y.csv')
 saham = saham.set_index('Date')
 
 saham = saham.drop(columns = ['Open','High','Low','Adj Close','Volume'])
 
 saham.head()
-
-plt.style.use('Solarize_Light2')
-
-import statsmodels.api as sm
-import itertools
-import warnings
-
 
 harga = saham['Close']
 
@@ -362,13 +357,13 @@ sse = np.sqrt(np.mean(np.square(y_pred_sar - saham['Close'])))
 mape = np.mean(np.abs((y_pred_sar - saham['Close'])/saham['Close']))
 
 fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(saham['Close'], label='truth');
+ax.plot(saham['Close'], label='historical');
 ax.plot(y_pred_sar, linestyle='--', color='#ff7823', label="SARIMA, RMSE={:0.2f}, MAPE={:0.2f}%, AIC={:0.2f}".format(sse, mape*100, results.aic));
 ax.legend();
 ax.set_title("SARIMA");
 
-# Split last 14 data
-train_saham, test_saham = saham['Close'][0:-14], saham['Close'][-14:]
+# Split last 30 data
+train_saham, test_saham = saham['Close'][0:-30], saham['Close'][-30:]
 
 mod_ev = sm.tsa.statespace.SARIMAX(train_saham,
                                 order=best_result[0],
@@ -380,7 +375,7 @@ results_ev = mod_ev.fit()
 # Change the start and end here
 # Next step is finding start-end workaround for out of sample/skipped dates
 
-pred_sar_ev = results_ev.get_prediction(start=211, end=241, dynamic=False)
+pred_sar_ev = results_ev.get_prediction(start=212, end=241, dynamic=False)
 pred_sar_ci = pred_sar_ev.conf_int()
 ax = saham['Close'].plot(label='historical')
 pred_sar_ev.predicted_mean.plot(linestyle='--', color='#ff7823', ax=ax, label='forecast', alpha=.7, figsize=(14, 7))
@@ -392,16 +387,16 @@ ax.set_ylabel('Price')
 plt.legend()
 plt.show()
 
+
 forecast_ev = pred_sar_ev.predicted_mean
 for i in range(30):
      print("Projected days + "+str(i+1)+": %.2f" % (forecast_ev[i:i+1]))
 
-print('RMSE: {:0.2f} Triliun'.format(rmse(test_saham, forecast_ev)))
+print('RMSE: {:0.2f}'.format(rmse(test_saham, forecast_ev)))
 print('MAPE: {:0.2f}%'.format(mean_absolute_percentage_error(test_saham, forecast_ev)*100))
 plt.close()
 
 # SARIMA multiple train-test splits
-
 X = saham['Close']
 splits = TimeSeriesSplit(n_splits=2)
 pyplot.figure(1)
@@ -460,7 +455,6 @@ plt.close()
 # Exponential Smoothing
 
 # Generating forecasting options
-
 tr = ['add', 'mul']
 ss = ['add', 'mul']
 dp = [True, False]
@@ -469,7 +463,6 @@ aics = []
 
 # Iterating forecasting options
 # Change seasonal period appropriately
-
 for i in tr:
     for j in ss:
         for k in dp:
@@ -480,7 +473,6 @@ for i in tr:
 
 # Forecasting using best fit model
 # Akaike criterion could be replaced
-          
 best_aic = min(aics)
 model = ExponentialSmoothing(harga.dropna(), trend=combs[best_aic][0], seasonal=combs[best_aic][1], seasonal_periods=30, damped=combs[best_aic][2])
 results_es = model.fit()
@@ -512,9 +504,9 @@ ev_table
 model_ev = ExponentialSmoothing(train_saham, trend=combs[best_aic][0], seasonal=combs[best_aic][1], seasonal_periods=30, damped=combs[best_aic][2])
 results_es_ev = model_ev.fit()
 
-forecast_es_ev = results_es_ev.forecast(14)
+forecast_es_ev = results_es_ev.forecast(30)
 fig, ax = plt.subplots(figsize=(12, 6))
-ax.plot(saham['Close'], label='truth');
+ax.plot(saham['Close'], label='historical');
 ax.plot(forecast_es_ev, linestyle='--', color='#ff7823', label="forecast");
 ax.legend();
 ax.set_title("Exp. Smoothing Forecasting");
@@ -527,7 +519,6 @@ print('MAPE: {:0.2f}%'.format(mean_absolute_percentage_error(test_saham, forecas
 plt.close()
 
 # Exp. Smoothing - multiple train-test splits
-
 RMSE = []
 MAPE = []
 pyplot.figure(1)
