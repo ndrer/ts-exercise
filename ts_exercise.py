@@ -13,6 +13,11 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
 import numpy as np
+import datetime
+import pandas_datareader.data as web
+
+start = datetime.datetime(2020, 1, 1)
+end = datetime.datetime.now()
 
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -94,13 +99,14 @@ import warnings
 plt.style.use('Solarize_Light2')
 
 
-#change csv file to appropriate Yahoo Finance CSV
-df = pd.read_csv('UNVR-1Y.csv')
+df = web.DataReader("UNVR.JK", "yahoo", start, end)
+print(df.tail(5))
+
+print(df.shape)
 
 #Load data, convert date format
 #Clean dividend row if necessary
-df['Date'] = pd.to_datetime(df['Date'])
-df = df.set_index('Date')
+
 print(df.index)
 df.info()
 
@@ -217,7 +223,7 @@ model_ev = ARIMA(train_shares.dropna(), order=(1, 0, 0))
 mod_100_ev = model_ev.fit()
 pred_ev = mod_100_ev.forecast(30)
 ax = df2['Close'].plot(label='historical')
-pred_ev.plot(linestyle='--', color='#ff7823', ax=ax, label='forecast', alpha=.7, figsize=(14, 7))
+pred_ev.plot(linestyle='--', color='#ff7823', ax=ax, label='forecast', alpha=.7, figsize=(10, 6))
 
 ax.set_xlabel('date')
 ax.set_ylabel('price')
@@ -301,13 +307,11 @@ ax.set_title("ARIMA Forecasting");
 # If you assume the price is seasonal
 
 #Should be the same with the csv file above
-saham = pd.read_csv('UNVR-1Y.csv')
-saham = saham.set_index('Date')
-
+saham = web.DataReader("UNVR.JK", "yahoo", start, end)
+print(saham.index)
+print(saham.info)
 saham = saham.drop(columns = ['Open','High','Low','Adj Close','Volume'])
-
 saham.head()
-
 harga = saham['Close']
 
 # Define the p, d and q parameters to take any value between 0 and 2
@@ -356,15 +360,19 @@ y_pred_sar = pred_sar.predicted_mean
 sse = np.sqrt(np.mean(np.square(y_pred_sar - saham['Close'])))
 mape = np.mean(np.abs((y_pred_sar - saham['Close'])/saham['Close']))
 
-fig, ax = plt.subplots(figsize=(12, 6))
+fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(saham['Close'], label='historical');
 ax.plot(y_pred_sar, linestyle='--', color='#ff7823', label="SARIMA, RMSE={:0.2f}, MAPE={:0.2f}%, AIC={:0.2f}".format(sse, mape*100, results.aic));
 ax.legend();
 ax.set_title("SARIMA");
+plt.show()
+plt.clf()
 
 # Split last 30 data
-train_saham, test_saham = saham['Close'][0:-30], saham['Close'][-30:]
-
+splitdate = 30
+saham2 = saham.copy()
+saham2 = saham2.reset_index()
+train_saham, test_saham = saham2['Close'][0:-splitdate], saham2['Close'][-splitdate:]
 mod_ev = sm.tsa.statespace.SARIMAX(train_saham,
                                 order=best_result[0],
                                 seasonal_order=best_result[1],
@@ -375,10 +383,14 @@ results_ev = mod_ev.fit()
 # Change the start and end here
 # Next step is finding start-end workaround for out of sample/skipped dates
 
-pred_sar_ev = results_ev.get_prediction(start=212, end=241, dynamic=False)
+start2 = len(saham2)-splitdate
+end2 = len(saham2)-1
+
+
+pred_sar_ev = results_ev.get_prediction(start=start2, end=end2, dynamic=False)
 pred_sar_ci = pred_sar_ev.conf_int()
-ax = saham['Close'].plot(label='historical')
-pred_sar_ev.predicted_mean.plot(linestyle='--', color='#ff7823', ax=ax, label='forecast', alpha=.7, figsize=(14, 7))
+ax = saham2['Close'].plot(label='historical')
+pred_sar_ev.predicted_mean.plot(linestyle='--', color='#ff7823', ax=ax, label='forecast', alpha=.7, figsize=(10, 5))
 ax.fill_between(pred_sar_ci.index,
                 pred_sar_ci.iloc[:, 0],
                 pred_sar_ci.iloc[:, 1], color='k', alpha=.2)
@@ -455,6 +467,8 @@ plt.close()
 # Exponential Smoothing
 
 # Generating forecasting options
+saham = web.DataReader("UNVR.JK", "yahoo", start, end)
+harga = saham['Close']
 tr = ['add', 'mul']
 ss = ['add', 'mul']
 dp = [True, False]
